@@ -9,7 +9,7 @@ from kfp.dsl import (component, Input, Model, Output, Dataset,
 
 
 GCP_BIGQUERY = "google-cloud-bigquery==3.20.1"
-PANDAS = "pandas==2.2.2"
+PANDAS = "pandas==2.0.3"
 SKLEARN = "scikit-learn==1.4.2"
 NUMPY = "numpy==1.26.4"
 BASE_IMAGE = "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
@@ -48,8 +48,10 @@ def query_to_table(
                           location=location)
     
     # Generate the query with all the job configurations
-    query_job = bq_client.query(query, 
-                                job_config=job_config)
+    query_job = bq_client.query(query, job_config=job_config)
+    query_job.result()
+
+    print(f"Query job with ID {query_job.job_id} finished.")
 
 
 @component(base_image=BASE_IMAGE, packages_to_install=[GCP_BIGQUERY])
@@ -299,7 +301,7 @@ def evaluation_metrics(
 
 
 @dsl.pipeline(name=PIPELINE_NAME, pipeline_root=PIPELINE_ROOT)
-def medium_pipeline(
+def oxheart_prototype_pipeline(
     project_id: str,
     dataset_location: str,
     dataset_id: str,
@@ -356,12 +358,14 @@ def medium_pipeline(
 
 
 if __name__ == "__main__":
-
-    DATASET_ID = "medium_article"
-    TABLE_ID = "temp_table_medium"
+    DATASET_ID = "oxheart_prototype"
+    TABLE_ID = "heart_temp"
     COL_LABEL = "class" 
-    COL_TRAINING=["sepal_length", "sepal_width", "petal_length", "petal_width"]
-
+    COL_TRAINING=[
+        'age','sex','chest_pain_type','resting_blood_pressure',
+        'chol','fasting_blood_sugar','resting_ECG','max_heart_rate',
+        'exang','slope','number_vessels_flourosopy','thal','target'
+                  ]
 
     PIPELINE_PARAMS = {"project_id": PROJECT_ID,
                     "dataset_location": LOCATION,
@@ -371,7 +375,7 @@ if __name__ == "__main__":
                     "col_training": COL_TRAINING}
 
     compiler.Compiler().compile(
-        pipeline_func=medium_pipeline,
+        pipeline_func=oxheart_prototype_pipeline,
         package_path=TEMPLATE_PATH)
     
     aiplatform.init(project=PROJECT_ID, location=LOCATION)
