@@ -36,9 +36,6 @@
           }
         },
         "parameters": {
-          "dict_keys": {
-            "parameterType": "STRUCT"
-          },
           "shape_test": {
             "parameterType": "NUMBER_INTEGER"
           },
@@ -60,9 +57,6 @@
           }
         },
         "parameters": {
-          "dict_keys": {
-            "parameterType": "STRUCT"
-          },
           "metrics_names": {
             "parameterType": "LIST"
           }
@@ -217,13 +211,13 @@
           "command": [
             "sh",
             "-c",
-            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.0.3' 'scikit-learn==1.4.2' && \"$0\" \"$@\"\n",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' 'scikit-learn==1.4.2' && \"$0\" \"$@\"\n",
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef create_sets(\n    data_input: Input[Dataset],\n    dataset_train: OutputPath(),\n    dataset_test: OutputPath(),\n    col_label: str,\n    col_training: list\n    ) -> NamedTuple(\"Outputs\", [(\"dict_keys\", dict), (\"shape_train\", int), (\"shape_test\", int)]):\n\n\n    \"\"\"\n    Split data into train and test sets.\n    \"\"\"\n\n    import logging\n    import pickle\n\n    import pandas as pd\n    from sklearn import model_selection\n\n    def convert_labels_to_categories(labels):\n        \"\"\"\n        The function returns a dictionary with the encoding of labels.\n        :returns: A Pandas DataFrame with all the metrics\n        \"\"\"\n        try:\n            dic_keys = {k: label for k, label in enumerate(sorted(labels.unique()))}\n            dic_vals = {label: k for k, label in enumerate(sorted(labels.unique()))}\n            return dic_vals, dic_keys\n        except Exception as e:\n            print(f'[ERROR] Something went wrong that is {e}')\n        return {}, {}\n\n\n    df_ = pd.read_csv(data_input.path)\n\n    df_.dropna(inplace=True)\n\n    logging.info(f\"[START] CREATE SETS, starts with an initial shape of {df_.shape}\")\n\n    if len(df_) != 0:\n\n        yy = df_[col_label]\n        dic_vals, dic_keys = convert_labels_to_categories(yy)\n\n        yy = yy.apply(lambda v: dic_vals[v])\n        xx = df_[col_training]\n\n        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=0, stratify=yy)\n\n        x_train_results = {'x_train': x_train, 'y_train': y_train}\n        x_test_results = {'x_test': x_test, 'y_test': y_test}\n\n        with open(dataset_train + f\".pkl\", 'wb') as file:\n            pickle.dump(x_train_results, file)\n\n        with open(dataset_test + \".pkl\", 'wb') as file:\n            pickle.dump(x_test_results, file)\n\n        logging.info(f\"[END] CREATE SETS, data set was split\")\n\n        return (dic_keys, len(x_train), len(x_test))\n\n    else:\n        logging.error(f\"[END] CREATE SETS, data set is empty\")\n        return (None, None, None)\n\n"
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef create_sets(\n    data_input: Input[Dataset],\n    dataset_train: OutputPath(),\n    dataset_test: OutputPath(),\n    col_label: str,\n    col_training: list\n    ) -> NamedTuple(\"Outputs\", [(\"shape_train\", int), (\"shape_test\", int)]):\n\n\n    \"\"\"\n    Split data into train and test sets.\n    \"\"\"\n\n    import logging\n    import pickle\n\n    import pandas as pd\n    from sklearn import model_selection\n\n\n    df = pd.read_csv(data_input.path)\n\n    df.dropna(inplace=True)\n\n    logging.info(f\"[START] CREATE SETS, starts with an initial shape of {df.shape}\")\n\n    if len(df) != 0:\n\n        yy = df[col_label]\n\n        xx = df[col_training]\n\n        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=0, stratify=yy)\n\n        x_train_results = {'x_train': x_train, 'y_train': y_train}\n        x_test_results = {'x_test': x_test, 'y_test': y_test}\n\n        with open(dataset_train + f\".pkl\", 'wb') as file:\n            pickle.dump(x_train_results, file)\n\n        with open(dataset_test + \".pkl\", 'wb') as file:\n            pickle.dump(x_test_results, file)\n\n        logging.info(f\"[END] CREATE SETS, data set was split\")\n\n        return (len(x_train), len(x_test))\n\n    else:\n        logging.error(f\"[END] CREATE SETS, data set is empty\")\n        return (None, None, None)\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       },
       "exec-evaluation-metrics": {
@@ -237,13 +231,13 @@
           "command": [
             "sh",
             "-c",
-            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.0.3' 'numpy==1.26.4' && \"$0\" \"$@\"\n",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' 'numpy==1.26.4' && \"$0\" \"$@\"\n",
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef evaluation_metrics(\n    predictions: Input[Dataset],\n    metrics_names: list,\n    dict_keys: dict,\n    metrics: Output[ClassificationMetrics],\n    kpi: Output[Metrics],\n    eval_metrics: Output[Metrics]\n) -> None:\n\n    \"\"\"\n    Create the evaluation metrics.\n    \"\"\" \n    import json\n    import logging\n    from importlib import import_module\n    import numpy as np\n    import pandas as pd\n\n    results = pd.read_csv(predictions.path)\n\n    # Encode the predictions model\n    results['class_true_clean'] = results['class_true'].astype(str).map(dict_keys)\n    results['class_pred_clean'] = results['class_pred'].astype(str).map(dict_keys)\n\n    # To fetch metrics from sklearn\n    module = import_module(f\"sklearn.metrics\")\n    metrics_dict = {}\n    for each_metric in metrics_names:\n        metric_func = getattr(module, each_metric)\n        if each_metric == 'f1_score':\n            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)\n        else:\n            metric_val = metric_func(results['class_true'], results['class_pred'])\n\n        # Save metric name and value\n        metric_val = np.round(np.average(metric_val), 4)\n        metrics_dict[f\"{each_metric}\"] = metric_val\n        kpi.log_metric(f\"{each_metric}\", metric_val)\n\n        # dumping kpi metadata to generate the metrics kpi\n        with open(kpi.path, \"w\") as f:\n            json.dump(kpi.metadata, f)\n        logging.info(f\"{each_metric}: {metric_val:.3f}\")\n\n    # dumping metrics_dict to generate the metrics table\n    with open(eval_metrics.path, \"w\") as f:\n        json.dump(metrics_dict, f)\n\n    # to generate the confusion matrix plot\n    confusion_matrix_func = getattr(module, \"confusion_matrix\")\n    metrics.log_confusion_matrix(list(dict_keys.values()),\n        confusion_matrix_func(results['class_true_clean'], results['class_pred_clean']).tolist(),)\n\n    # dumping metrics metadata\n    with open(metrics.path, \"w\") as f:\n        json.dump(metrics.metadata, f)\n\n"
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef evaluation_metrics(\n    predictions: Input[Dataset],\n    metrics_names: list,\n    metrics: Output[ClassificationMetrics],\n    kpi: Output[Metrics],\n    eval_metrics: Output[Metrics]\n) -> None:\n\n    \"\"\"\n    Create the evaluation metrics.\n    \"\"\" \n    import json\n    import logging\n    from importlib import import_module\n    import numpy as np\n    import pandas as pd\n\n    results = pd.read_csv(predictions.path)\n\n    # To fetch metrics from sklearn\n    module = import_module(f\"sklearn.metrics\")\n    metrics_dict = {}\n    for each_metric in metrics_names:\n        metric_func = getattr(module, each_metric)\n        if each_metric == 'f1_score':\n            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)\n        else:\n            metric_val = metric_func(results['class_true'], results['class_pred'])\n\n        # Save metric name and value\n        metric_val = np.round(np.average(metric_val), 4)\n        metrics_dict[f\"{each_metric}\"] = metric_val\n        kpi.log_metric(f\"{each_metric}\", metric_val)\n\n        # dumping kpi metadata to generate the metrics kpi\n        with open(kpi.path, \"w\") as f:\n            json.dump(kpi.metadata, f)\n        logging.info(f\"{each_metric}: {metric_val:.3f}\")\n\n    # dumping metrics_dict to generate the metrics table\n    with open(eval_metrics.path, \"w\") as f:\n        json.dump(metrics_dict, f)\n\n    # Extract unique labels and sort them to maintain a consistent order\n    unique_labels = list(set(results['class_true']))\n    unique_labels.sort()  # Sorting to ensure consistent label order\n\n    display_labels = [str(label) for label in unique_labels]\n    confusion_matrix_func = getattr(module, \"confusion_matrix\")\n    metrics.log_confusion_matrix(display_labels,\n        confusion_matrix_func(results['class_true'], results['class_pred']).tolist(),)\n\n    # dumping metrics metadata\n    with open(metrics.path, \"w\") as f:\n        json.dump(metrics.metadata, f)\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       },
       "exec-extract-table-to-gcs": {
@@ -263,7 +257,7 @@
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
             "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef extract_table_to_gcs(\n    project_id: str,\n    dataset_id: str,\n    table_id: str,\n    dataset: Output[Dataset],\n    location: str = \"EU\",\n) -> None:\n    \"\"\"\n    Extract a Big Query table into Google Cloud Storage.\n    \"\"\"\n\n    import logging\n    import os\n    import google.cloud.bigquery as bq\n\n    # Get the table generated on the previous component\n    full_table_id = f\"{project_id}.{dataset_id}.{table_id}\"\n    table = bq.table.Table(table_ref=full_table_id)\n\n    # Initiate the Big Query client to connect with the project\n    job_config = bq.job.ExtractJobConfig(**{})\n    client = bq.client.Client(project=project_id, location=location)\n\n    # Submit the extract table job to store on GCS\n    extract_job = client.extract_table(table, dataset.uri)\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       },
       "exec-predict-model": {
@@ -277,13 +271,13 @@
           "command": [
             "sh",
             "-c",
-            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.0.3' && \"$0\" \"$@\"\n",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' && \"$0\" \"$@\"\n",
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
             "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef predict_model(\n    test_data: InputPath(),\n    model: Input[Model],\n    predictions: Output[Dataset],\n) -> None:\n\n\n    \"\"\"\n    Create the predictions of the model.\n    \"\"\"    \n\n    import logging\n    import os\n    import pickle\n    import joblib\n    import pandas as pd\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    # you have to load the test data\n    with open(test_data + \".pkl\", 'rb') as file:\n        test_data = pickle.load(file)\n\n    X_test = test_data['x_test']\n    y_test = test_data['y_test']\n\n    # load model\n    model_path = os.path.join(model.path, \"model.joblib\")\n    model = joblib.load(model_path)\n    y_pred = model.predict(X_test)\n\n    # predict and save to prediction column\n    df = pd.DataFrame({\n        'class_true': y_test.tolist(),\n        'class_pred': y_pred.tolist()}\n    )\n\n    # save dataframe\n    df.to_csv(predictions.path, sep=\",\", header=True, index=False)\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       },
       "exec-query-to-table": {
@@ -303,7 +297,7 @@
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
             "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef query_to_table(\n    query: str,\n    project_id: str,\n    dataset_id: str,\n    table_id: str,\n    location: str = \"EU\",\n    query_job_config: dict = None,\n) -> None:\n    \"\"\"\n    Run the query and create a new BigQuery table\n    \"\"\"\n\n    import google.cloud.bigquery as bq\n\n    # Configure your query job\n    job_config = bq.QueryJobConfig(destination=f\"{project_id}.{dataset_id}.{table_id}\", \n                                   **query_job_config)\n\n    # Initiate the Big Query client to connect with the project\n    bq_client = bq.Client(project=project_id, \n                          location=location)\n\n    # Generate the query with all the job configurations\n    query_job = bq_client.query(query, job_config=job_config)\n    query_job.result()\n\n    print(f\"Query job with ID {query_job.job_id} finished.\")\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       },
       "exec-train-model": {
@@ -317,13 +311,13 @@
           "command": [
             "sh",
             "-c",
-            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'scikit-learn==1.4.2' 'pandas==2.0.3' && \"$0\" \"$@\"\n",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'scikit-learn==1.4.2' 'pandas==2.2.2' && \"$0\" \"$@\"\n",
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef train_model(\n    training_data: InputPath(),\n    model: Output[Model],\n) -> None:\n    \"\"\"\n    Train a classification model.\n    \"\"\"\n\n    import logging\n    import os\n    import pickle\n    import joblib\n    import numpy as np\n    from sklearn.linear_model import LogisticRegression\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    # you have to load the training data\n    with open(training_data + \".pkl\", 'rb') as file:\n        train_data = pickle.load(file)\n\n    X_train = train_data['x_train']\n    y_train = train_data['y_train']\n\n    logging.info(f\"X_train shape {X_train.shape}\")\n    logging.info(f\"y_train shape {y_train.shape}\")\n\n    logging.info(\"Starting Training...\")\n\n    clf = LogisticRegression(n_jobs=-1, random_state=42)\n    train_model = clf.fit(X_train, y_train)\n\n    # ensure to change GCS to local mount path\n    os.makedirs(model.path, exist_ok=True)\n\n    # ensure that you save the final model as a .joblib\n    logging.info(f\"Save model to: {model.path}\")\n    joblib.dump(train_model, model.path + \"/model.joblib\")\n\n"
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef train_model(\n    training_data: InputPath(),\n    model: Output[Model],\n) -> None:\n    \"\"\"\n    Train a classification model.\n    \"\"\"\n    import logging\n    import os\n    import pickle\n    import joblib\n    import numpy as np\n    from sklearn.linear_model import LogisticRegression\n\n    logging.basicConfig(level=logging.INFO)\n\n    # Load the training data\n    with open(training_data + \".pkl\", 'rb') as file:\n        train_data = pickle.load(file)\n\n    X_train = np.array(train_data['x_train'], copy=True)\n    y_train = np.array(train_data['y_train'], copy=True)\n\n    logging.info(f\"X_train shape: {X_train.shape}\")\n    logging.info(f\"y_train shape: {y_train.shape}\")\n\n    logging.info(\"Starting training...\")\n    clf = LogisticRegression(n_jobs=-1, random_state=42)\n    train_model = clf.fit(X_train, y_train)\n\n    # Ensure the model directory exists\n    os.makedirs(model.path, exist_ok=True)\n    model_file = os.path.join(model.path, \"model.joblib\")\n\n    # Save the final model\n    logging.info(f\"Saving model to: {model_file}\")\n    joblib.dump(train_model, model_file)\n\n"
           ],
-          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
       }
     }
@@ -402,7 +396,6 @@
             "name": "comp-evaluation-metrics"
           },
           "dependentTasks": [
-            "create-sets",
             "predict-model"
           ],
           "inputs": {
@@ -415,12 +408,6 @@
               }
             },
             "parameters": {
-              "dict_keys": {
-                "taskOutputParameter": {
-                  "outputParameterKey": "dict_keys",
-                  "producerTask": "create-sets"
-                }
-              },
               "metrics_names": {
                 "runtimeValue": {
                   "constant": [

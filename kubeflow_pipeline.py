@@ -9,10 +9,10 @@ from kfp.dsl import (component, Input, Model, Output, Dataset,
 
 
 GCP_BIGQUERY = "google-cloud-bigquery==3.20.1"
-PANDAS = "pandas==2.0.3"
+PANDAS = "pandas==2.2.2"
 SKLEARN = "scikit-learn==1.4.2"
 NUMPY = "numpy==1.26.4"
-BASE_IMAGE = "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+BASE_IMAGE = "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d%H%M%S")
 PROJECT_ID = "pb-sandbox-1"
@@ -91,7 +91,7 @@ def create_sets(
     dataset_test: OutputPath(),
     col_label: str,
     col_training: list
-    ) -> NamedTuple("Outputs", [("dict_keys", dict), ("shape_train", int), ("shape_test", int)]):
+    ) -> NamedTuple("Outputs", [("shape_train", int), ("shape_test", int)]):
     
     
     """
@@ -104,35 +104,20 @@ def create_sets(
     import pandas as pd
     from sklearn import model_selection
 
-    def convert_labels_to_categories(labels):
-        """
-        The function returns a dictionary with the encoding of labels.
-        :returns: A Pandas DataFrame with all the metrics
-        """
-        try:
-            dic_keys = {k: label for k, label in enumerate(sorted(labels.unique()))}
-            dic_vals = {label: k for k, label in enumerate(sorted(labels.unique()))}
-            return dic_vals, dic_keys
-        except Exception as e:
-            print(f'[ERROR] Something went wrong that is {e}')
-        return {}, {}
 
+    df = pd.read_csv(data_input.path)
 
-    df_ = pd.read_csv(data_input.path)
-    
-    df_.dropna(inplace=True)
+    df.dropna(inplace=True)
 
-    logging.info(f"[START] CREATE SETS, starts with an initial shape of {df_.shape}")
+    logging.info(f"[START] CREATE SETS, starts with an initial shape of {df.shape}")
 
-    if len(df_) != 0:
+    if len(df) != 0:
 
-        yy = df_[col_label]
-        dic_vals, dic_keys = convert_labels_to_categories(yy)
+        yy = df[col_label]
 
-        yy = yy.apply(lambda v: dic_vals[v])
-        xx = df_[col_training]
+        xx = df[col_training]
 
-        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=0, stratify=yy)
+        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=42, stratify=yy)
 
         x_train_results = {'x_train': x_train, 'y_train': y_train}
         x_test_results = {'x_test': x_test, 'y_test': y_test}
@@ -145,7 +130,7 @@ def create_sets(
 
         logging.info(f"[END] CREATE SETS, data set was split")
 
-        return (dic_keys, len(x_train), len(x_test))
+        return (len(x_train), len(x_test))
 
     else:
         logging.error(f"[END] CREATE SETS, data set is empty")
@@ -162,7 +147,6 @@ def train_model(
     """
     Train a classification model.
     """
-        
     import logging
     import os
     import pickle
@@ -170,29 +154,29 @@ def train_model(
     import numpy as np
     from sklearn.linear_model import LogisticRegression
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
 
-    # you have to load the training data
+    # Load the training data
     with open(training_data + ".pkl", 'rb') as file:
         train_data = pickle.load(file)
 
-    X_train = train_data['x_train']
-    y_train = train_data['y_train']
+    X_train = np.array(train_data['x_train'], copy=True)
+    y_train = np.array(train_data['y_train'], copy=True)
     
-    logging.info(f"X_train shape {X_train.shape}")
-    logging.info(f"y_train shape {y_train.shape}")
+    logging.info(f"X_train shape: {X_train.shape}")
+    logging.info(f"y_train shape: {y_train.shape}")
 
-    logging.info("Starting Training...")
-    
+    logging.info("Starting training...")
     clf = LogisticRegression(n_jobs=-1, random_state=42)
     train_model = clf.fit(X_train, y_train)
 
-    # ensure to change GCS to local mount path
+    # Ensure the model directory exists
     os.makedirs(model.path, exist_ok=True)
-
-    # ensure that you save the final model as a .joblib
-    logging.info(f"Save model to: {model.path}")
-    joblib.dump(train_model, model.path + "/model.joblib")
+    model_file = os.path.join(model.path, "model.joblib")
+    
+    # Save the final model
+    logging.info(f"Saving model to: {model_file}")
+    joblib.dump(train_model, model_file)
 
 
 @component(
@@ -245,7 +229,6 @@ def predict_model(
 def evaluation_metrics(
     predictions: Input[Dataset],
     metrics_names: list,
-    dict_keys: dict,
     metrics: Output[ClassificationMetrics],
     kpi: Output[Metrics],
     eval_metrics: Output[Metrics]
@@ -261,10 +244,6 @@ def evaluation_metrics(
     import pandas as pd
 
     results = pd.read_csv(predictions.path)
-    
-    # Encode the predictions model
-    results['class_true_clean'] = results['class_true'].astype(str).map(dict_keys)
-    results['class_pred_clean'] = results['class_pred'].astype(str).map(dict_keys)
     
     # To fetch metrics from sklearn
     module = import_module(f"sklearn.metrics")
@@ -289,11 +268,15 @@ def evaluation_metrics(
     # dumping metrics_dict to generate the metrics table
     with open(eval_metrics.path, "w") as f:
         json.dump(metrics_dict, f)
+    
+    # Extract unique labels and sort them to maintain a consistent order
+    unique_labels = list(set(results['class_true']))
+    unique_labels.sort()  # Sorting to ensure consistent label order
 
-    # to generate the confusion matrix plot
+    display_labels = [str(label) for label in unique_labels]
     confusion_matrix_func = getattr(module, "confusion_matrix")
-    metrics.log_confusion_matrix(list(dict_keys.values()),
-        confusion_matrix_func(results['class_true_clean'], results['class_pred_clean']).tolist(),)
+    metrics.log_confusion_matrix(display_labels,
+        confusion_matrix_func(results['class_true'], results['class_pred']).tolist(),)
     
     # dumping metrics metadata
     with open(metrics.path, "w") as f:
@@ -352,7 +335,6 @@ def oxheart_prototype_pipeline(
     # Evaluate model
     eval_metrics = evaluation_metrics(
         predictions=predict_data.outputs['predictions'],
-        dict_keys=spit_data.outputs['dict_keys'],
         metrics_names=METRICS_NAMES,
         ).set_display_name("Evaluation Metrics")
 
@@ -360,7 +342,7 @@ def oxheart_prototype_pipeline(
 if __name__ == "__main__":
     DATASET_ID = "oxheart_prototype"
     TABLE_ID = "heart_temp"
-    COL_LABEL = "class" 
+    COL_LABEL = "target" 
     COL_TRAINING=[
         'age','sex','chest_pain_type','resting_blood_pressure',
         'chol','fasting_blood_sugar','resting_ECG','max_heart_rate',
