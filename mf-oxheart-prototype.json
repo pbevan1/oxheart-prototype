@@ -1,0 +1,611 @@
+{
+  "components": {
+    "comp-create-sets": {
+      "executorLabel": "exec-create-sets",
+      "inputDefinitions": {
+        "artifacts": {
+          "data_input": {
+            "artifactType": {
+              "schemaTitle": "system.Dataset",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        },
+        "parameters": {
+          "col_label": {
+            "parameterType": "STRING"
+          },
+          "col_training": {
+            "parameterType": "LIST"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "dataset_test": {
+            "artifactType": {
+              "schemaTitle": "system.Artifact",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "dataset_train": {
+            "artifactType": {
+              "schemaTitle": "system.Artifact",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        },
+        "parameters": {
+          "dict_keys": {
+            "parameterType": "STRUCT"
+          },
+          "shape_test": {
+            "parameterType": "NUMBER_INTEGER"
+          },
+          "shape_train": {
+            "parameterType": "NUMBER_INTEGER"
+          }
+        }
+      }
+    },
+    "comp-evaluation-metrics": {
+      "executorLabel": "exec-evaluation-metrics",
+      "inputDefinitions": {
+        "artifacts": {
+          "predictions": {
+            "artifactType": {
+              "schemaTitle": "system.Dataset",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        },
+        "parameters": {
+          "dict_keys": {
+            "parameterType": "STRUCT"
+          },
+          "metrics_names": {
+            "parameterType": "LIST"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "eval_metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "kpi": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "metrics": {
+            "artifactType": {
+              "schemaTitle": "system.ClassificationMetrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "comp-extract-table-to-gcs": {
+      "executorLabel": "exec-extract-table-to-gcs",
+      "inputDefinitions": {
+        "parameters": {
+          "dataset_id": {
+            "parameterType": "STRING"
+          },
+          "location": {
+            "defaultValue": "EU",
+            "isOptional": true,
+            "parameterType": "STRING"
+          },
+          "project_id": {
+            "parameterType": "STRING"
+          },
+          "table_id": {
+            "parameterType": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "dataset": {
+            "artifactType": {
+              "schemaTitle": "system.Dataset",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "comp-predict-model": {
+      "executorLabel": "exec-predict-model",
+      "inputDefinitions": {
+        "artifacts": {
+          "model": {
+            "artifactType": {
+              "schemaTitle": "system.Model",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "test_data": {
+            "artifactType": {
+              "schemaTitle": "system.Artifact",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "predictions": {
+            "artifactType": {
+              "schemaTitle": "system.Dataset",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "comp-query-to-table": {
+      "executorLabel": "exec-query-to-table",
+      "inputDefinitions": {
+        "parameters": {
+          "dataset_id": {
+            "parameterType": "STRING"
+          },
+          "location": {
+            "defaultValue": "EU",
+            "isOptional": true,
+            "parameterType": "STRING"
+          },
+          "project_id": {
+            "parameterType": "STRING"
+          },
+          "query": {
+            "parameterType": "STRING"
+          },
+          "query_job_config": {
+            "isOptional": true,
+            "parameterType": "STRUCT"
+          },
+          "table_id": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-train-model": {
+      "executorLabel": "exec-train-model",
+      "inputDefinitions": {
+        "artifacts": {
+          "training_data": {
+            "artifactType": {
+              "schemaTitle": "system.Artifact",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "model": {
+            "artifactType": {
+              "schemaTitle": "system.Model",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    }
+  },
+  "defaultPipelineRoot": "gs://oxheart/heart/",
+  "deploymentSpec": {
+    "executors": {
+      "exec-create-sets": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "create_sets"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' 'scikit-learn==1.4.2' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef create_sets(\n    data_input: Input[Dataset],\n    dataset_train: OutputPath(),\n    dataset_test: OutputPath(),\n    col_label: str,\n    col_training: list\n    ) -> NamedTuple(\"Outputs\", [(\"dict_keys\", dict), (\"shape_train\", int), (\"shape_test\", int)]):\n\n\n    \"\"\"\n    Split data into train and test sets.\n    \"\"\"\n\n    import logging\n    import pickle\n\n    import pandas as pd\n    from sklearn import model_selection\n\n    def convert_labels_to_categories(labels):\n        \"\"\"\n        The function returns a dictionary with the encoding of labels.\n        :returns: A Pandas DataFrame with all the metrics\n        \"\"\"\n        try:\n            dic_keys = {k: label for k, label in enumerate(sorted(labels.unique()))}\n            dic_vals = {label: k for k, label in enumerate(sorted(labels.unique()))}\n            return dic_vals, dic_keys\n        except Exception as e:\n            print(f'[ERROR] Something went wrong that is {e}')\n        return {}, {}\n\n\n    df_ = pd.read_csv(data_input.path)\n\n    df_.dropna(inplace=True)\n\n    logging.info(f\"[START] CREATE SETS, starts with an initial shape of {df_.shape}\")\n\n    if len(df_) != 0:\n\n        yy = df_[col_label]\n        dic_vals, dic_keys = convert_labels_to_categories(yy)\n\n        yy = yy.apply(lambda v: dic_vals[v])\n        xx = df_[col_training]\n\n        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=0, stratify=yy)\n\n        x_train_results = {'x_train': x_train, 'y_train': y_train}\n        x_test_results = {'x_test': x_test, 'y_test': y_test}\n\n        with open(dataset_train + f\".pkl\", 'wb') as file:\n            pickle.dump(x_train_results, file)\n\n        with open(dataset_test + \".pkl\", 'wb') as file:\n            pickle.dump(x_test_results, file)\n\n        logging.info(f\"[END] CREATE SETS, data set was split\")\n\n        return (dic_keys, len(x_train), len(x_test))\n\n    else:\n        logging.error(f\"[END] CREATE SETS, data set is empty\")\n        return (None, None, None)\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      },
+      "exec-evaluation-metrics": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "evaluation_metrics"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' 'numpy==1.26.4' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef evaluation_metrics(\n    predictions: Input[Dataset],\n    metrics_names: list,\n    dict_keys: dict,\n    metrics: Output[ClassificationMetrics],\n    kpi: Output[Metrics],\n    eval_metrics: Output[Metrics]\n) -> None:\n\n    \"\"\"\n    Create the evaluation metrics.\n    \"\"\" \n    import json\n    import logging\n    from importlib import import_module\n    import numpy as np\n    import pandas as pd\n\n    results = pd.read_csv(predictions.path)\n\n    # Encode the predictions model\n    results['class_true_clean'] = results['class_true'].astype(str).map(dict_keys)\n    results['class_pred_clean'] = results['class_pred'].astype(str).map(dict_keys)\n\n    # To fetch metrics from sklearn\n    module = import_module(f\"sklearn.metrics\")\n    metrics_dict = {}\n    for each_metric in metrics_names:\n        metric_func = getattr(module, each_metric)\n        if each_metric == 'f1_score':\n            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)\n        else:\n            metric_val = metric_func(results['class_true'], results['class_pred'])\n\n        # Save metric name and value\n        metric_val = np.round(np.average(metric_val), 4)\n        metrics_dict[f\"{each_metric}\"] = metric_val\n        kpi.log_metric(f\"{each_metric}\", metric_val)\n\n        # dumping kpi metadata to generate the metrics kpi\n        with open(kpi.path, \"w\") as f:\n            json.dump(kpi.metadata, f)\n        logging.info(f\"{each_metric}: {metric_val:.3f}\")\n\n    # dumping metrics_dict to generate the metrics table\n    with open(eval_metrics.path, \"w\") as f:\n        json.dump(metrics_dict, f)\n\n    # to generate the confusion matrix plot\n    confusion_matrix_func = getattr(module, \"confusion_matrix\")\n    metrics.log_confusion_matrix(list(dict_keys.values()),\n        confusion_matrix_func(results['class_true_clean'], results['class_pred_clean']).tolist(),)\n\n    # dumping metrics metadata\n    with open(metrics.path, \"w\") as f:\n        json.dump(metrics.metadata, f)\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      },
+      "exec-extract-table-to-gcs": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "extract_table_to_gcs"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-bigquery==3.20.1' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef extract_table_to_gcs(\n    project_id: str,\n    dataset_id: str,\n    table_id: str,\n    dataset: Output[Dataset],\n    location: str = \"EU\",\n) -> None:\n    \"\"\"\n    Extract a Big Query table into Google Cloud Storage.\n    \"\"\"\n\n    import logging\n    import os\n    import google.cloud.bigquery as bq\n\n    # Get the table generated on the previous component\n    full_table_id = f\"{project_id}.{dataset_id}.{table_id}\"\n    table = bq.table.Table(table_ref=full_table_id)\n\n    # Initiate the Big Query client to connect with the project\n    job_config = bq.job.ExtractJobConfig(**{})\n    client = bq.client.Client(project=project_id, location=location)\n\n    # Submit the extract table job to store on GCS\n    extract_job = client.extract_table(table, dataset.uri)\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      },
+      "exec-predict-model": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "predict_model"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef predict_model(\n    test_data: InputPath(),\n    model: Input[Model],\n    predictions: Output[Dataset],\n) -> None:\n\n\n    \"\"\"\n    Create the predictions of the model.\n    \"\"\"    \n\n    import logging\n    import os\n    import pickle\n    import joblib\n    import pandas as pd\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    # you have to load the test data\n    with open(test_data + \".pkl\", 'rb') as file:\n        test_data = pickle.load(file)\n\n    X_test = test_data['x_test']\n    y_test = test_data['y_test']\n\n    # load model\n    model_path = os.path.join(model.path, \"model.joblib\")\n    model = joblib.load(model_path)\n    y_pred = model.predict(X_test)\n\n    # predict and save to prediction column\n    df = pd.DataFrame({\n        'class_true': y_test.tolist(),\n        'class_pred': y_pred.tolist()}\n    )\n\n    # save dataframe\n    df.to_csv(predictions.path, sep=\",\", header=True, index=False)\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      },
+      "exec-query-to-table": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "query_to_table"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-bigquery==3.20.1' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef query_to_table(\n    query: str,\n    project_id: str,\n    dataset_id: str,\n    table_id: str,\n    location: str = \"EU\",\n    query_job_config: dict = None,\n) -> None:\n    \"\"\"\n    Run the query and create a new BigQuery table\n    \"\"\"\n\n    import google.cloud.bigquery as bq\n\n    # Configure your query job\n    job_config = bq.QueryJobConfig(destination=f\"{project_id}.{dataset_id}.{table_id}\", \n                                   **query_job_config)\n\n    # Initiate the Big Query client to connect with the project\n    bq_client = bq.Client(project=project_id, \n                          location=location)\n\n    # Generate the query with all the job configurations\n    query_job = bq_client.query(query, \n                                job_config=job_config)\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      },
+      "exec-train-model": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "train_model"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&  python3 -m pip install --quiet --no-warn-script-location 'scikit-learn==1.4.2' 'pandas==2.2.2' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef train_model(\n    training_data: InputPath(),\n    model: Output[Model],\n) -> None:\n    \"\"\"\n    Train a classification model.\n    \"\"\"\n\n    import logging\n    import os\n    import pickle\n    import joblib\n    import numpy as np\n    from sklearn.linear_model import LogisticRegression\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    # you have to load the training data\n    with open(training_data + \".pkl\", 'rb') as file:\n        train_data = pickle.load(file)\n\n    X_train = train_data['x_train']\n    y_train = train_data['y_train']\n\n    logging.info(f\"X_train shape {X_train.shape}\")\n    logging.info(f\"y_train shape {y_train.shape}\")\n\n    logging.info(\"Starting Training...\")\n\n    clf = LogisticRegression(n_jobs=-1, random_state=42)\n    train_model = clf.fit(X_train, y_train)\n\n    # ensure to change GCS to local mount path\n    os.makedirs(model.path, exist_ok=True)\n\n    # ensure that you save the final model as a .joblib\n    logging.info(f\"Save model to: {model.path}\")\n    joblib.dump(train_model, model.path + \"/model.joblib\")\n\n"
+          ],
+          "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/sklearn-cpu"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "name": "mf-oxheart-prototype"
+  },
+  "root": {
+    "dag": {
+      "outputs": {
+        "artifacts": {
+          "evaluation-metrics-eval_metrics": {
+            "artifactSelectors": [
+              {
+                "outputArtifactKey": "eval_metrics",
+                "producerSubtask": "evaluation-metrics"
+              }
+            ]
+          },
+          "evaluation-metrics-kpi": {
+            "artifactSelectors": [
+              {
+                "outputArtifactKey": "kpi",
+                "producerSubtask": "evaluation-metrics"
+              }
+            ]
+          },
+          "evaluation-metrics-metrics": {
+            "artifactSelectors": [
+              {
+                "outputArtifactKey": "metrics",
+                "producerSubtask": "evaluation-metrics"
+              }
+            ]
+          }
+        }
+      },
+      "tasks": {
+        "create-sets": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-create-sets"
+          },
+          "dependentTasks": [
+            "extract-table-to-gcs"
+          ],
+          "inputs": {
+            "artifacts": {
+              "data_input": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "dataset",
+                  "producerTask": "extract-table-to-gcs"
+                }
+              }
+            },
+            "parameters": {
+              "col_label": {
+                "componentInputParameter": "col_label"
+              },
+              "col_training": {
+                "componentInputParameter": "col_training"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Split data"
+          }
+        },
+        "evaluation-metrics": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-evaluation-metrics"
+          },
+          "dependentTasks": [
+            "create-sets",
+            "predict-model"
+          ],
+          "inputs": {
+            "artifacts": {
+              "predictions": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "predictions",
+                  "producerTask": "predict-model"
+                }
+              }
+            },
+            "parameters": {
+              "dict_keys": {
+                "taskOutputParameter": {
+                  "outputParameterKey": "dict_keys",
+                  "producerTask": "create-sets"
+                }
+              },
+              "metrics_names": {
+                "runtimeValue": {
+                  "constant": [
+                    "accuracy_score",
+                    "f1_score"
+                  ]
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Evaluation Metrics"
+          }
+        },
+        "extract-table-to-gcs": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-extract-table-to-gcs"
+          },
+          "dependentTasks": [
+            "query-to-table"
+          ],
+          "inputs": {
+            "parameters": {
+              "dataset_id": {
+                "componentInputParameter": "dataset_id"
+              },
+              "location": {
+                "componentInputParameter": "dataset_location"
+              },
+              "project_id": {
+                "componentInputParameter": "project_id"
+              },
+              "table_id": {
+                "componentInputParameter": "table_id"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Extract Big Query to GCS"
+          }
+        },
+        "predict-model": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-predict-model"
+          },
+          "dependentTasks": [
+            "create-sets",
+            "train-model"
+          ],
+          "inputs": {
+            "artifacts": {
+              "model": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "model",
+                  "producerTask": "train-model"
+                }
+              },
+              "test_data": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "dataset_test",
+                  "producerTask": "create-sets"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Create Predictions"
+          }
+        },
+        "query-to-table": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-query-to-table"
+          },
+          "inputs": {
+            "parameters": {
+              "dataset_id": {
+                "componentInputParameter": "dataset_id"
+              },
+              "location": {
+                "componentInputParameter": "dataset_location"
+              },
+              "project_id": {
+                "componentInputParameter": "project_id"
+              },
+              "query": {
+                "runtimeValue": {
+                  "constant": "SELECT * FROM `pb-sandbox-1.oxheart_prototype.heart`"
+                }
+              },
+              "query_job_config": {
+                "runtimeValue": {
+                  "constant": {
+                    "write_disposition": "WRITE_TRUNCATE"
+                  }
+                }
+              },
+              "table_id": {
+                "componentInputParameter": "table_id"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Ingest Data"
+          }
+        },
+        "train-model": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-train-model"
+          },
+          "dependentTasks": [
+            "create-sets"
+          ],
+          "inputs": {
+            "artifacts": {
+              "training_data": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "dataset_train",
+                  "producerTask": "create-sets"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "Train Model"
+          }
+        }
+      }
+    },
+    "inputDefinitions": {
+      "parameters": {
+        "col_label": {
+          "parameterType": "STRING"
+        },
+        "col_training": {
+          "parameterType": "LIST"
+        },
+        "dataset_id": {
+          "parameterType": "STRING"
+        },
+        "dataset_location": {
+          "parameterType": "STRING"
+        },
+        "project_id": {
+          "parameterType": "STRING"
+        },
+        "table_id": {
+          "parameterType": "STRING"
+        }
+      }
+    },
+    "outputDefinitions": {
+      "artifacts": {
+        "evaluation-metrics-eval_metrics": {
+          "artifactType": {
+            "schemaTitle": "system.Metrics",
+            "schemaVersion": "0.0.1"
+          }
+        },
+        "evaluation-metrics-kpi": {
+          "artifactType": {
+            "schemaTitle": "system.Metrics",
+            "schemaVersion": "0.0.1"
+          }
+        },
+        "evaluation-metrics-metrics": {
+          "artifactType": {
+            "schemaTitle": "system.ClassificationMetrics",
+            "schemaVersion": "0.0.1"
+          }
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-2.7.0"
+}
