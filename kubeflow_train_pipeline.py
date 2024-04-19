@@ -1,4 +1,5 @@
 import json
+import os
 from typing import NamedTuple
 from datetime import datetime
 import google.cloud.aiplatform as aiplatform
@@ -7,6 +8,8 @@ from kfp.dsl import (component, Input, Model, Output, Dataset,
                         Artifact, OutputPath, ClassificationMetrics, 
                         Metrics, InputPath)
 
+# Load secrets from env variables
+PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 
 GCP_BIGQUERY = "google-cloud-bigquery==3.20.1"
 PANDAS = "pandas==2.2.2"
@@ -15,10 +18,10 @@ NUMPY = "numpy==1.26.4"
 BASE_IMAGE = "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d%H%M%S")
-PROJECT_ID = "pb-sandbox-1"
+# PROJECT_ID = "pb-sandbox-1"
 LOCATION = "europe-west1"
 PIPELINE_ROOT = "gs://oxheart/heart/"
-SERVICE_ACCOUNT = "pb-testing@pb-sandbox-1.iam.gserviceaccount.com"  # Move this to a credentials file and read it
+# SERVICE_ACCOUNT = "pb-testing@pb-sandbox-1.iam.gserviceaccount.com"  # Move this to a credentials file and read it
 PIPELINE_NAME = "mf-oxheart-prototype"
 JOBID = f"ml-pipeline-{TIMESTAMP}"
 ENABLE_CACHING = False
@@ -173,7 +176,14 @@ def train_model(
     # Ensure the model directory exists
     os.makedirs(model.path, exist_ok=True)
     model_file = os.path.join(model.path, "model.joblib")
-    
+
+    # Save the model to the model directory
+    aiplatform.Model.upload(
+            display_name="oxheart_prototype",
+            artifact_uri=model_file,
+            serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-4:latest'
+        )
+
     # Save the final model
     logging.info(f"Saving model to: {model_file}")
     joblib.dump(train_model, model_file)
@@ -340,6 +350,8 @@ def oxheart_prototype_pipeline(
 
 
 if __name__ == "__main__":
+    SERVICE_ACCOUNT_KEY = json.loads(os.getenv('GCP_SA_KEY'))
+    SERVICE_ACCOUNT = SERVICE_ACCOUNT_KEY['client_email']
     DATASET_ID = "oxheart_prototype"
     TABLE_ID = "heart_temp"
     COL_LABEL = "target" 

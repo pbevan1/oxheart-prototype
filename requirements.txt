@@ -2,5 +2,7 @@ kfp==2.7.0
 google-cloud-aiplatform==1.47.0
 matplotlib==3.7.1
 seaborn==0.13.1
+scikit-learn==1.4.2
 pandas==2.0.3
 numpy==1.25.2
+pytest==8.1.1
