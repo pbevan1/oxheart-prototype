@@ -81,6 +81,17 @@
               "schemaTitle": "system.Metrics",
               "schemaVersion": "0.0.1"
             }
+          },
+          "output_metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Artifact",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        },
+        "parameters": {
+          "metrics": {
+            "parameterType": "STRUCT"
           }
         }
       }
@@ -177,15 +188,15 @@
       "executorLabel": "exec-register-model",
       "inputDefinitions": {
         "artifacts": {
-          "model": {
+          "metrics": {
             "artifactType": {
-              "schemaTitle": "system.Model",
+              "schemaTitle": "system.Artifact",
               "schemaVersion": "0.0.1"
             }
           },
-          "model_metrics": {
+          "model": {
             "artifactType": {
-              "schemaTitle": "system.Metrics",
+              "schemaTitle": "system.Model",
               "schemaVersion": "0.0.1"
             }
           }
@@ -268,7 +279,7 @@
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef evaluation_metrics(\n    predictions: Input[Dataset],\n    metrics_names: list,\n    confusion: Output[ClassificationMetrics],\n    kpi: Output[Metrics],\n    eval_metrics: Output[Metrics]\n) -> None:\n\n    \"\"\"\n    Create the evaluation metrics.\n    \"\"\" \n    import json\n    import logging\n    from importlib import import_module\n    import numpy as np\n    import pandas as pd\n\n    results = pd.read_csv(predictions.path)\n\n    # To fetch metrics from sklearn\n    module = import_module(f\"sklearn.metrics\")\n    metrics_dict = {}\n    for each_metric in metrics_names:\n        metric_func = getattr(module, each_metric)\n        if each_metric == 'f1_score':\n            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)\n        else:\n            metric_val = metric_func(results['class_true'], results['class_pred'])\n\n        # Save metric name and value\n        metric_val = np.round(np.average(metric_val), 4)\n        metrics_dict[f\"{each_metric}\"] = metric_val\n        kpi.log_metric(f\"{each_metric}\", metric_val)\n\n        # dumping kpi metadata to generate the metrics kpi\n        with open(kpi.path, \"w\") as f:\n            json.dump(kpi.metadata, f)\n        logging.info(f\"{each_metric}: {metric_val:.3f}\")\n\n    # dumping metrics_dict to generate the metrics table\n    with open(eval_metrics.path, \"w\") as f:\n        json.dump(metrics_dict, f)\n\n    # Extract unique labels and sort them to maintain a consistent order\n    unique_labels = list(set(results['class_true']))\n    unique_labels.sort()  # Sorting to ensure consistent label order\n\n    display_labels = [str(label) for label in unique_labels]\n    confusion_matrix_func = getattr(module, \"confusion_matrix\")\n    confusion.log_confusion_matrix(display_labels,\n        confusion_matrix_func(results['class_true'], results['class_pred']).tolist(),)\n\n    # dumping confusion metadata\n    with open(confusion.path, \"w\") as f:\n        json.dump(confusion.metadata, f)\n\n"
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef evaluation_metrics(\n    predictions: Input[Dataset],\n    metrics_names: list,\n    confusion: Output[ClassificationMetrics],\n    kpi: Output[Metrics],\n    eval_metrics: Output[Metrics],\n    output_metrics: OutputPath()\n) -> NamedTuple('Outputs', [('metrics', Dict[str, float])]):\n\n    \"\"\"\n    Create the evaluation metrics.\n    \"\"\" \n    import json\n    import logging\n    from importlib import import_module\n    import numpy as np\n    import pandas as pd\n\n    results = pd.read_csv(predictions.path)\n\n    # To fetch metrics from sklearn\n    output = {}\n    module = import_module(\"sklearn.metrics\")\n    metrics_dict = {}\n    for each_metric in metrics_names:\n        metric_func = getattr(module, each_metric)\n        if each_metric == 'f1_score':\n            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)\n        else:\n            metric_val = metric_func(results['class_true'], results['class_pred'])\n\n        # Save metric name and value\n        metric_val = np.round(np.average(metric_val), 4)\n        metrics_dict[each_metric] = metric_val\n        kpi.log_metric(each_metric, metric_val)\n\n        # dumping kpi metadata to generate the metrics kpi\n        with open(kpi.path, \"w\") as f:\n            json.dump(kpi.metadata, f)\n        logging.info(f\"{each_metric}: {metric_val:.3f}\")\n        output[each_metric] = metric_val\n\n    # dumping metrics_dict to generate the metrics table\n    with open(eval_metrics.path, \"w\") as f:\n        json.dump(metrics_dict, f)\n\n    # Extract unique labels and sort them to maintain a consistent order\n    unique_labels = list(set(results['class_true']))\n    unique_labels.sort()  # Sorting to ensure consistent label order\n    display_labels = [str(label) for label in unique_labels]\n    confusion_matrix_func = getattr(module, \"confusion_matrix\")\n    confusion.log_confusion_matrix(display_labels,\n        confusion_matrix_func(results['class_true'], results['class_pred']).tolist())\n\n    # dumping confusion metadata\n    with open(confusion.path, \"w\") as f:\n        json.dump(confusion.metadata, f)\n\n    return Outputs(metrics=output)\n\n"
           ],
           "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
@@ -348,7 +359,7 @@
             "sh",
             "-ec",
             "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef register_model(\n    model: Input[Model],\n    model_metrics: Input[Metrics],\n    project_id: str,\n    location: str,\n    display_name: str,\n    model_description: str,\n) -> None:\n    from google.cloud import aiplatform\n    from google.cloud.aiplatform import gapic\n    import json\n\n    # Load metrics\n    with open(model_metrics.path) as f:\n        metrics = json.load(f)\n\n    # f1_dict = {k: v for k, v in metrics.items() if k == 'f1_score'}\n\n    # Initialize Vertex AI client\n    aiplatform.init(project=project_id, location=location)\n\n    # Upload the model to Vertex AI with metrics as labels\n    registered_model = aiplatform.Model.upload(\n        display_name=display_name,\n        artifact_uri=model.path,\n        description=model_description,\n        serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.0-23:latest',\n    )\n\n    # model_eval = gapic.ModelEvaluation(\n    #     display_name=\"eval\",\n    #     metrics_schema_uri=\"gs://google-cloud-aiplatform/schema/modelevaluation/classification_metrics_1.0.0.yaml\",\n    #     metrics=f1_dict,\n    # )\n\n    # API_ENDPOINT = f\"{location}-aiplatform.googleapis.com\"\n    # client = gapic.ModelServiceClient(client_options={\"api_endpoint\": API_ENDPOINT})\n\n    # client.import_model_evaluation(parent=registered_model.resource_name, model_evaluation=model_eval)\n\n    print(f\"Model registered with metrics. ID: {registered_model.resource_name}\")\n\n"
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef register_model(\n    model: Input[Model],\n    metrics: InputPath(),\n    project_id: str,\n    location: str,\n    display_name: str,\n    model_description: str,\n) -> None:\n    from google.cloud import aiplatform\n\n    # Initialize Vertex AI client\n    aiplatform.init(project=project_id, location=location)\n\n    # Upload the model to Vertex AI with metrics as labels\n    registered_model = aiplatform.Model.upload(\n        display_name=display_name,\n        artifact_uri=model.path,\n        description=model_description,\n        serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.0-23:latest',\n        labels={'version': 'v1'},\n        metadata=metrics  # Pass the accuracy and F1 score as metadata\n    )\n\n    print(f\"Model registered with metrics. ID: {registered_model.resource_name}\")\n\n"
           ],
           "image": "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cpu.py310"
         }
@@ -597,16 +608,16 @@
           ],
           "inputs": {
             "artifacts": {
+              "metrics": {
+                "taskOutputArtifact": {
+                  "outputArtifactKey": "output_metrics",
+                  "producerTask": "evaluation-metrics"
+                }
+              },
               "model": {
                 "taskOutputArtifact": {
                   "outputArtifactKey": "model",
                   "producerTask": "train-model"
-                }
-              },
-              "model_metrics": {
-                "taskOutputArtifact": {
-                  "outputArtifactKey": "kpi",
-                  "producerTask": "evaluation-metrics"
                 }
               }
             },

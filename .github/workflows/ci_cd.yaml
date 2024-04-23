@@ -24,9 +24,7 @@ jobs:
         pip install -r requirements.txt
     - name: Run tests
       run: |
-        # Here you might run some tests. Adjust according to your test setup.
-        echo "Running tests..."
-        # Example: python -m unittest discover tests
+        # pytest
 
   deploy:
     needs: build-and-test
