@@ -48,6 +48,8 @@ API_KEY can be requested from me via `peterbevan@hotmail.co.uk``.
 
 Additionaly, github actions is being used for CI/CD, and is set to run tests and deploy the training pipeline upon each push to the main branch.
 
+We use `ruff` for linting in this repository.
+
 Questions to client:
 * What is the expected distribution and range of values of oldpeak? Seems to be outlier at -99.99.
 

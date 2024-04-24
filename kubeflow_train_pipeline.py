@@ -4,14 +4,23 @@ from typing import NamedTuple
 from datetime import datetime
 import google.cloud.aiplatform as aiplatform
 from kfp import dsl, compiler
-from kfp.dsl import (component, Input, Model, Output, Dataset, 
-                        Artifact, OutputPath, ClassificationMetrics, 
-                        Metrics, InputPath)
+from kfp.dsl import (
+    component,
+    Input,
+    Model,
+    Output,
+    Dataset,
+    Artifact,
+    OutputPath,
+    ClassificationMetrics,
+    Metrics,
+    InputPath,
+)
 
 from arguments import parse_args
 
 # Load secrets from env variables
-PROJECT_ID = os.getenv('GCP_PROJECT_ID')
+PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 
 args = parse_args()
 GCP_BIGQUERY = "google-cloud-bigquery==3.20.1"
@@ -39,17 +48,17 @@ def query_to_table(
     """
     Run the query and create a new BigQuery table
     """
-    
+
     import google.cloud.bigquery as bq
-    
+
     # Configure query job
-    job_config = bq.QueryJobConfig(destination=f"{project_id}.{dataset_id}.{table_id}", 
-                                   **query_job_config)
-    
+    job_config = bq.QueryJobConfig(
+        destination=f"{project_id}.{dataset_id}.{table_id}", **query_job_config
+    )
+
     # Initiate BigQuery client
-    bq_client = bq.Client(project=project_id, 
-                          location=location)
-    
+    bq_client = bq.Client(project=project_id, location=location)
+
     # Generate query with all job configs
     query_job = bq_client.query(query, job_config=job_config)
     query_job.result()
@@ -85,18 +94,14 @@ def extract_table_to_gcs(
     extract_job = client.extract_table(table, dataset.uri)
 
 
-@component(
-    base_image=BASE_IMAGE, packages_to_install=[PANDAS, SKLEARN]
-)
+@component(base_image=BASE_IMAGE, packages_to_install=[PANDAS, SKLEARN])
 def create_sets(
     data_input: Input[Dataset],
     dataset_train: OutputPath(),
     dataset_test: OutputPath(),
     col_label: str,
-    col_training: list
-    ) -> NamedTuple("Outputs", [("shape_train", int), ("shape_test", int)]):
-    
-    
+    col_training: list,
+) -> NamedTuple("Outputs", [("shape_train", int), ("shape_test", int)]):
     """
     Split data into train and test sets.
     """
@@ -106,37 +111,30 @@ def create_sets(
 
     import pandas as pd
     from sklearn import model_selection
-    from sklearn.model_selection import cross_val_score
-    from sklearn.linear_model import LogisticRegression
-
 
     df = pd.read_csv(data_input.path)
 
     # df.dropna(inplace=True)
-    df['max_heart_rate'].fillna(df['max_heart_rate'].median(), inplace=True)
+    df["max_heart_rate"].fillna(df["max_heart_rate"].median(), inplace=True)
 
     logging.info(f"[START] CREATE SETS, starts with an initial shape of {df.shape}")
 
     if len(df) != 0:
-
         yy = df[col_label]
 
         xx = df[col_training]
 
-        clf = LogisticRegression(n_jobs=-1, random_state=42)
-        cv_scores = cross_val_score(clf, xx, yy, cv=5, scoring=['f1', 'accuracy'])
+        x_train, x_test, y_train, y_test = model_selection.train_test_split(
+            xx, yy, test_size=0.2, random_state=42, stratify=yy
+        )
 
-        print(cv_scores)
+        x_train_results = {"x_train": x_train, "y_train": y_train}
+        x_test_results = {"x_test": x_test, "y_test": y_test}
 
-        x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=42, stratify=yy)
-
-        x_train_results = {'x_train': x_train, 'y_train': y_train}
-        x_test_results = {'x_test': x_test, 'y_test': y_test}
-
-        with open(dataset_train + f".pkl", 'wb') as file:
+        with open(dataset_train + f".pkl", "wb") as file:
             pickle.dump(x_train_results, file)
 
-        with open(dataset_test + ".pkl", 'wb') as file:
+        with open(dataset_test + ".pkl", "wb") as file:
             pickle.dump(x_test_results, file)
 
         logging.info(f"[END] CREATE SETS, data set was split")
@@ -148,9 +146,7 @@ def create_sets(
         return (None, None, None)
 
 
-@component(
-    base_image=BASE_IMAGE, packages_to_install=[SKLEARN, PANDAS]
-)
+@component(base_image=BASE_IMAGE, packages_to_install=[SKLEARN, PANDAS])
 def train_model(
     training_data: InputPath(),
     model: Output[Model],
@@ -169,12 +165,12 @@ def train_model(
     logging.basicConfig(level=logging.INFO)
 
     # Load the training data
-    with open(training_data + ".pkl", 'rb') as file:
+    with open(training_data + ".pkl", "rb") as file:
         train_data = pickle.load(file)
 
-    X_train = np.array(train_data['x_train'], copy=True)
-    y_train = np.array(train_data['y_train'], copy=True)
-    
+    X_train = np.array(train_data["x_train"], copy=True)
+    y_train = np.array(train_data["y_train"], copy=True)
+
     logging.info(f"X_train shape: {X_train.shape}")
     logging.info(f"y_train shape: {y_train.shape}")
 
@@ -193,19 +189,15 @@ def train_model(
     joblib.dump(train_model, model_file)
 
 
-@component(
-    base_image=BASE_IMAGE, packages_to_install=[PANDAS]
-)
+@component(base_image=BASE_IMAGE, packages_to_install=[PANDAS])
 def predict_model(
     test_data: InputPath(),
     model: Input[Model],
     predictions: Output[Dataset],
 ) -> None:
-    
-    
     """
     Create the predictions of the model.
-    """    
+    """
 
     import logging
     import os
@@ -216,11 +208,11 @@ def predict_model(
     logging.getLogger().setLevel(logging.INFO)
 
     # you have to load the test data
-    with open(test_data + ".pkl", 'rb') as file:
+    with open(test_data + ".pkl", "rb") as file:
         test_data = pickle.load(file)
 
-    X_test = test_data['x_test']
-    y_test = test_data['y_test']
+    X_test = test_data["x_test"]
+    y_test = test_data["y_test"]
 
     # load model
     model_path = os.path.join(model.path, "model.joblib")
@@ -228,29 +220,23 @@ def predict_model(
     y_pred = model.predict(X_test)
 
     # predict and save to prediction column
-    df = pd.DataFrame({
-        'class_true': y_test.tolist(),
-        'class_pred': y_pred.tolist()}
-    )
+    df = pd.DataFrame({"class_true": y_test.tolist(), "class_pred": y_pred.tolist()})
 
     # save dataframe
     df.to_csv(predictions.path, sep=",", header=True, index=False)
 
 
-@component(
-    base_image=BASE_IMAGE, packages_to_install=[PANDAS, NUMPY]
-)
+@component(base_image=BASE_IMAGE, packages_to_install=[PANDAS, NUMPY])
 def evaluation_metrics(
     predictions: Input[Dataset],
     metrics_names: list,
     confusion: Output[ClassificationMetrics],
     kpi: Output[Metrics],
-    eval_metrics: Output[Metrics]
+    eval_metrics: Output[Metrics],
 ) -> None:
-    
     """
     Create the evaluation metrics.
-    """ 
+    """
     import json
     import logging
     from importlib import import_module
@@ -258,22 +244,24 @@ def evaluation_metrics(
     import pandas as pd
 
     results = pd.read_csv(predictions.path)
-    
+
     # To fetch metrics from sklearn
     module = import_module(f"sklearn.metrics")
     metrics_dict = {}
     for each_metric in metrics_names:
         metric_func = getattr(module, each_metric)
-        if each_metric == 'f1_score':
-            metric_val = metric_func(results['class_true'], results['class_pred'], average=None)
+        if each_metric == "f1_score":
+            metric_val = metric_func(
+                results["class_true"], results["class_pred"], average=None
+            )
         else:
-            metric_val = metric_func(results['class_true'], results['class_pred'])
-        
+            metric_val = metric_func(results["class_true"], results["class_pred"])
+
         # Save metric name and value
         metric_val = np.round(np.average(metric_val), 4)
         metrics_dict[f"{each_metric}"] = metric_val
         kpi.log_metric(f"{each_metric}", metric_val)
-        
+
         # dumping kpi metadata to generate the metrics kpi
         with open(kpi.path, "w") as f:
             json.dump(kpi.metadata, f)
@@ -282,24 +270,25 @@ def evaluation_metrics(
     # dumping metrics_dict to generate the metrics table
     with open(eval_metrics.path, "w") as f:
         json.dump(metrics_dict, f)
-    
+
     # Extract unique labels and sort them to maintain a consistent order
-    unique_labels = list(set(results['class_true']))
+    unique_labels = list(set(results["class_true"]))
     unique_labels.sort()  # Sorting to ensure consistent label order
 
     display_labels = [str(label) for label in unique_labels]
     confusion_matrix_func = getattr(module, "confusion_matrix")
-    confusion.log_confusion_matrix(display_labels,
-        confusion_matrix_func(results['class_true'], results['class_pred']).tolist(),)
-    
+    confusion.log_confusion_matrix(
+        display_labels,
+        confusion_matrix_func(results["class_true"], results["class_pred"]).tolist(),
+    )
+
     # dumping confusion metadata
     with open(confusion.path, "w") as f:
         json.dump(confusion.metadata, f)
 
 
 @component(
-    base_image=BASE_IMAGE,
-    packages_to_install=[PANDAS, GOOGLE_CLOUD_AI_PLATFORM]
+    base_image=BASE_IMAGE, packages_to_install=[PANDAS, GOOGLE_CLOUD_AI_PLATFORM]
 )
 def register_model(
     model: Input[Model],
@@ -327,7 +316,7 @@ def register_model(
         display_name=display_name,
         artifact_uri=model.path,
         description=model_description,
-        serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.0-23:latest',
+        serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.0-23:latest",
     )
 
     # model_eval = gapic.ModelEvaluation(
@@ -351,56 +340,55 @@ def oxheart_prototype_pipeline(
     dataset_id: str,
     table_id: str,
     col_label: str,
-    col_training: list):
-    
+    col_training: list,
+):
     QUERY = f"""SELECT * FROM `{project_id}.{dataset_id}.{table_id}`"""
     METRICS_NAMES = ["accuracy_score", "f1_score"]
-    
-    ingest = query_to_table(query=QUERY,
-                            table_id=table_id,
-                            project_id=project_id,
-                            dataset_id=dataset_id,
-                            location=dataset_location,
-                            query_job_config={'write_disposition': 'WRITE_TRUNCATE'}
-                           ).set_display_name("Ingest Data")
-    
+
+    ingest = query_to_table(
+        query=QUERY,
+        table_id=table_id,
+        project_id=project_id,
+        dataset_id=dataset_id,
+        location=dataset_location,
+        query_job_config={"write_disposition": "WRITE_TRUNCATE"},
+    ).set_display_name("Ingest Data")
+
     # From big query store in GCS
     ingested_dataset = (
-                        extract_table_to_gcs(
-                            project_id=project_id,
-                            dataset_id=dataset_id,
-                            table_id=table_id,
-                            location=dataset_location,
-                        )
-                        .after(ingest)
-                        .set_display_name("Extract Big Query to GCS")
-                    )
-    
+        extract_table_to_gcs(
+            project_id=project_id,
+            dataset_id=dataset_id,
+            table_id=table_id,
+            location=dataset_location,
+        )
+        .after(ingest)
+        .set_display_name("Extract Big Query to GCS")
+    )
+
     # Split data
-    spit_data = create_sets(data_input=ingested_dataset.outputs["dataset"],
-                              col_label=col_label,
-                              col_training=col_training
-                           ).set_display_name("Split data")
+    spit_data = create_sets(
+        data_input=ingested_dataset.outputs["dataset"],
+        col_label=col_label,
+        col_training=col_training,
+    ).set_display_name("Split data")
 
     # Add to pipeline function
     training_model = train_model(
-        training_data=spit_data.outputs['dataset_train'],
+        training_data=spit_data.outputs["dataset_train"],
     ).set_display_name("Train Model and Save to GCS")
 
-    
     # Predit model
     predict_data = predict_model(
-                test_data=spit_data.outputs['dataset_test'],
-                model=training_model.outputs["model"]
-            ).set_display_name("Create Predictions")
-    
-    
+        test_data=spit_data.outputs["dataset_test"],
+        model=training_model.outputs["model"],
+    ).set_display_name("Create Predictions")
+
     # Evaluate model
     eval_metrics = evaluation_metrics(
-        predictions=predict_data.outputs['predictions'],
+        predictions=predict_data.outputs["predictions"],
         metrics_names=METRICS_NAMES,
-        ).set_display_name("Evaluation Metrics")
-
+    ).set_display_name("Evaluation Metrics")
 
     reg_model = register_model(
         model=training_model.outputs["model"],
@@ -408,32 +396,35 @@ def oxheart_prototype_pipeline(
         project_id=project_id,
         location=dataset_location,
         display_name=args.PIPELINE_NAME,
-        model_description="A prototype model trained for Oxheart"
+        model_description="A prototype model trained for Oxheart",
     ).set_display_name("Register Model in Vertex AI")
 
 
 if __name__ == "__main__":
-    SERVICE_ACCOUNT_KEY = json.loads(os.getenv('GCP_SA_KEY'))
-    SERVICE_ACCOUNT = SERVICE_ACCOUNT_KEY['client_email']
+    SERVICE_ACCOUNT_KEY = json.loads(os.getenv("GCP_SA_KEY"))
+    SERVICE_ACCOUNT = SERVICE_ACCOUNT_KEY["client_email"]
 
-    PIPELINE_PARAMS = {"project_id": PROJECT_ID,
-                    "dataset_location": args.LOCATION,
-                    "table_id": args.TABLE_ID,
-                    "dataset_id": args.DATASET_ID,
-                    "col_label": args.COL_LABEL,
-                    "col_training": args.COL_TRAINING}
+    PIPELINE_PARAMS = {
+        "project_id": PROJECT_ID,
+        "dataset_location": args.LOCATION,
+        "table_id": args.TABLE_ID,
+        "dataset_id": args.DATASET_ID,
+        "col_label": args.COL_LABEL,
+        "col_training": args.COL_TRAINING,
+    }
 
     compiler.Compiler().compile(
-        pipeline_func=oxheart_prototype_pipeline,
-        package_path=TEMPLATE_PATH)
-    
+        pipeline_func=oxheart_prototype_pipeline, package_path=TEMPLATE_PATH
+    )
+
     aiplatform.init(project=PROJECT_ID, location=args.LOCATION)
 
     pipeline_ = aiplatform.pipeline_jobs.PipelineJob(
-    enable_caching=args.ENABLE_CACHING,
-    display_name=args.PIPELINE_NAME,
-    template_path=TEMPLATE_PATH,
-    job_id=JOBID,
-    parameter_values=PIPELINE_PARAMS)
+        enable_caching=args.ENABLE_CACHING,
+        display_name=args.PIPELINE_NAME,
+        template_path=TEMPLATE_PATH,
+        job_id=JOBID,
+        parameter_values=PIPELINE_PARAMS,
+    )
 
     pipeline_.submit(service_account=SERVICE_ACCOUNT)
