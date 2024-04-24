@@ -35,14 +35,14 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       with:
-        project_id: ${{ secrets.RUN_PROJECT }}
+        project_id: "pb-sandbox-1"
     - name: Authenticate gcloud CLI
       uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
     - name: Deploy to Vertex AI
       env:
-        GCP_PROJECT_ID: ${{ secrets.RUN_PROJECT }}
+        GCP_PROJECT_ID: "pb-sandbox-1"
         GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
       run: |
         python kubeflow_train_pipeline.py
