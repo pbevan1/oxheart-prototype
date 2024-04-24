@@ -52,9 +52,10 @@ Questions to client:
 * What is the expected distribution and range of values of oldpeak? Seems to be outlier at -99.99.
 
 What would I do with more time?
+* Add testing.
+* Adjust ci/cd to retrain when we get new data.
 * Ask the client about the potential anomolous `oldpeak` data or do more research into it.
 * Add more models into pipeline to see best performing.
-* Add testing.
 * Better documentation (i.e. function docstrings).
 * Maybe k-fold cross validation instead of train/test split and then retrain on full dataset before deploying since the dataset is tiny.
 * Hyperparameter tuning/feature selection/model comparison if it was real world data where we didn't already get 100% acc with logistic regression.
