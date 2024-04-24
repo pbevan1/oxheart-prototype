@@ -44,7 +44,7 @@ curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H 
 
 **NOTE**: The model isn't trained using `oldpeak`, so queries to the API should not include the value for this.
 
-API_KEY can be requested from me via peterbevan@hotmail.co.uk.
+API_KEY can be requested from me via `peterbevan@hotmail.co.uk``.
 
 Additionaly, github actions is being used for CI/CD, and is set to run tests and deploy the training pipeline upon each push to the main branch.
 
