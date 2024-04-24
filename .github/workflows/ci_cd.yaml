@@ -46,7 +46,7 @@ jobs:
         GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
       run: |
         pip install -r requirements.txt
-        python kubeflow_train_pipeline.py
+        python kubeflow_train_pipeline.py --ENABLE_CACHING
     - name: Notify Deployment
       run: |
         echo "Deployment successful!"

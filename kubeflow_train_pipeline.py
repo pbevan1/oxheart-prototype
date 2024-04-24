@@ -106,6 +106,8 @@ def create_sets(
 
     import pandas as pd
     from sklearn import model_selection
+    from sklearn.model_selection import cross_val_score
+    from sklearn.linear_model import LogisticRegression
 
 
     df = pd.read_csv(data_input.path)
@@ -120,6 +122,11 @@ def create_sets(
         yy = df[col_label]
 
         xx = df[col_training]
+
+        clf = LogisticRegression(n_jobs=-1, random_state=42)
+        cv_scores = cross_val_score(clf, xx, yy, cv=5, scoring=['f1', 'accuracy'])
+
+        print(cv_scores)
 
         x_train, x_test, y_train, y_test = model_selection.train_test_split(xx, yy, test_size=0.2, random_state=42, stratify=yy)
 
