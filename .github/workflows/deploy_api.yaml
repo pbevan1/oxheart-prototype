@@ -41,7 +41,7 @@ jobs:
       run: |
         cd deploy_model
         pip install -r requirements.txt
-        gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY="d3b88ec0-e104-4be0-8dcd-61c825c2be55" --allow-unauthenticated --platform=managed
+        gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY=${{ secrets.CR_API_KEY }} --allow-unauthenticated --platform=managed
     - name: Notify Deployment
       run: |
         echo "Deployment successful!"
