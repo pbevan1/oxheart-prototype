@@ -95,13 +95,12 @@ def extract_table_to_gcs(
 
 
 @component(base_image=BASE_IMAGE, packages_to_install=[PANDAS, SKLEARN])
-def create_sets(
+def feature_eng(
     data_input: Input[Dataset],
     dataset_train: OutputPath(),
-    dataset_test: OutputPath(),
     col_label: str,
     col_training: list,
-) -> NamedTuple("Outputs", [("shape_train", int), ("shape_test", int)]):
+) -> None:
     """
     Split data into train and test sets.
     """
@@ -124,26 +123,68 @@ def create_sets(
 
         xx = df[col_training]
 
-        x_train, x_test, y_train, y_test = model_selection.train_test_split(
-            xx, yy, test_size=0.2, random_state=42, stratify=yy
-        )
-
-        x_train_results = {"x_train": x_train, "y_train": y_train}
-        x_test_results = {"x_test": x_test, "y_test": y_test}
+        x_train_results = {"x_train": xx, "y_train": yy}
 
         with open(dataset_train + f".pkl", "wb") as file:
             pickle.dump(x_train_results, file)
 
-        with open(dataset_test + ".pkl", "wb") as file:
-            pickle.dump(x_test_results, file)
+        logging.info(f"[END] FEATURE ENG, training data set was created")
 
-        logging.info(f"[END] CREATE SETS, data set was split")
-
-        return (len(x_train), len(x_test))
+        # return (len(xx))
 
     else:
-        logging.error(f"[END] CREATE SETS, data set is empty")
-        return (None, None, None)
+        logging.error(f"[END] FEATURE ENG, data set is empty")
+        # return (None)
+
+
+@component(base_image=BASE_IMAGE, packages_to_install=[SKLEARN, PANDAS])
+def cross_validation(
+    training_data: InputPath(),
+    metrics_names: list,
+    scores: Output[Metrics],
+    eval_metrics: Output[Metrics],
+) -> None:
+    """
+    Train a classification model and save it to Google Cloud Storage.
+    """
+    import logging
+    import os
+    import pickle
+    import json
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import cross_val_score
+
+    logging.basicConfig(level=logging.INFO)
+
+    # Load the training data
+    with open(training_data + ".pkl", "rb") as file:
+        train_data = pickle.load(file)
+
+    X_train = np.array(train_data["x_train"], copy=True)
+    y_train = np.array(train_data["y_train"], copy=True)
+
+    logging.info(f"X_train shape: {X_train.shape}")
+    logging.info(f"y_train shape: {y_train.shape}")
+
+    logging.info("Starting training...")
+    clf = LogisticRegression(n_jobs=-1, random_state=42)
+
+    metrics_dict = {}
+    for each_metric in metrics_names:
+        scores = cross_val_score(clf, X_train, y_train, cv=5, scoring=each_metric)
+        metric_val =scores.mean()
+        metrics_dict[f"{each_metric}"] = metric_val
+        scores.log_metric(f"{each_metric}", metric_val)
+
+        # dumping scores metadata to generate the metrics scores
+        with open(scores.path, "w") as f:
+            json.dump(scores.metadata, f)
+        logging.info(f"{each_metric}: {metric_val:.3f}")
+
+    # dumping metrics_dict to generate the metrics table
+    with open(eval_metrics.path, "w") as f:
+        json.dump(metrics_dict, f)
 
 
 @component(base_image=BASE_IMAGE, packages_to_install=[SKLEARN, PANDAS])
@@ -189,104 +230,6 @@ def train_model(
     joblib.dump(train_model, model_file)
 
 
-@component(base_image=BASE_IMAGE, packages_to_install=[PANDAS])
-def predict_model(
-    test_data: InputPath(),
-    model: Input[Model],
-    predictions: Output[Dataset],
-) -> None:
-    """
-    Create the predictions of the model.
-    """
-
-    import logging
-    import os
-    import pickle
-    import joblib
-    import pandas as pd
-
-    logging.getLogger().setLevel(logging.INFO)
-
-    # you have to load the test data
-    with open(test_data + ".pkl", "rb") as file:
-        test_data = pickle.load(file)
-
-    X_test = test_data["x_test"]
-    y_test = test_data["y_test"]
-
-    # load model
-    model_path = os.path.join(model.path, "model.joblib")
-    model = joblib.load(model_path)
-    y_pred = model.predict(X_test)
-
-    # predict and save to prediction column
-    df = pd.DataFrame({"class_true": y_test.tolist(), "class_pred": y_pred.tolist()})
-
-    # save dataframe
-    df.to_csv(predictions.path, sep=",", header=True, index=False)
-
-
-@component(base_image=BASE_IMAGE, packages_to_install=[PANDAS, NUMPY])
-def evaluation_metrics(
-    predictions: Input[Dataset],
-    metrics_names: list,
-    confusion: Output[ClassificationMetrics],
-    kpi: Output[Metrics],
-    eval_metrics: Output[Metrics],
-) -> None:
-    """
-    Create the evaluation metrics.
-    """
-    import json
-    import logging
-    from importlib import import_module
-    import numpy as np
-    import pandas as pd
-
-    results = pd.read_csv(predictions.path)
-
-    # To fetch metrics from sklearn
-    module = import_module(f"sklearn.metrics")
-    metrics_dict = {}
-    for each_metric in metrics_names:
-        metric_func = getattr(module, each_metric)
-        if each_metric == "f1_score":
-            metric_val = metric_func(
-                results["class_true"], results["class_pred"], average=None
-            )
-        else:
-            metric_val = metric_func(results["class_true"], results["class_pred"])
-
-        # Save metric name and value
-        metric_val = np.round(np.average(metric_val), 4)
-        metrics_dict[f"{each_metric}"] = metric_val
-        kpi.log_metric(f"{each_metric}", metric_val)
-
-        # dumping kpi metadata to generate the metrics kpi
-        with open(kpi.path, "w") as f:
-            json.dump(kpi.metadata, f)
-        logging.info(f"{each_metric}: {metric_val:.3f}")
-
-    # dumping metrics_dict to generate the metrics table
-    with open(eval_metrics.path, "w") as f:
-        json.dump(metrics_dict, f)
-
-    # Extract unique labels and sort them to maintain a consistent order
-    unique_labels = list(set(results["class_true"]))
-    unique_labels.sort()  # Sorting to ensure consistent label order
-
-    display_labels = [str(label) for label in unique_labels]
-    confusion_matrix_func = getattr(module, "confusion_matrix")
-    confusion.log_confusion_matrix(
-        display_labels,
-        confusion_matrix_func(results["class_true"], results["class_pred"]).tolist(),
-    )
-
-    # dumping confusion metadata
-    with open(confusion.path, "w") as f:
-        json.dump(confusion.metadata, f)
-
-
 @component(
     base_image=BASE_IMAGE, packages_to_install=[PANDAS, GOOGLE_CLOUD_AI_PLATFORM]
 )
@@ -306,8 +249,6 @@ def register_model(
     with open(model_metrics.path) as f:
         metrics = json.load(f)
 
-    # f1_dict = {k: v for k, v in metrics.items() if k == 'f1_score'}
-
     # Initialize Vertex AI client
     aiplatform.init(project=project_id, location=location)
 
@@ -318,17 +259,6 @@ def register_model(
         description=model_description,
         serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.0-23:latest",
     )
-
-    # model_eval = gapic.ModelEvaluation(
-    #     display_name="eval",
-    #     metrics_schema_uri="gs://google-cloud-aiplatform/schema/modelevaluation/classification_metrics_1.0.0.yaml",
-    #     metrics=f1_dict,
-    # )
-
-    # API_ENDPOINT = f"{location}-aiplatform.googleapis.com"
-    # client = gapic.ModelServiceClient(client_options={"api_endpoint": API_ENDPOINT})
-
-    # client.import_model_evaluation(parent=registered_model.resource_name, model_evaluation=model_eval)
 
     print(f"Model registered with metrics. ID: {registered_model.resource_name}")
 
@@ -343,7 +273,7 @@ def oxheart_prototype_pipeline(
     col_training: list,
 ):
     QUERY = f"""SELECT * FROM `{project_id}.{dataset_id}.{table_id}`"""
-    METRICS_NAMES = ["accuracy_score", "f1_score"]
+    METRICS_NAMES = ["accuracy", "f1"]
 
     ingest = query_to_table(
         query=QUERY,
@@ -367,32 +297,25 @@ def oxheart_prototype_pipeline(
     )
 
     # Split data
-    spit_data = create_sets(
+    training_data = feature_eng(
         data_input=ingested_dataset.outputs["dataset"],
         col_label=col_label,
         col_training=col_training,
-    ).set_display_name("Split data")
+    ).set_display_name("Feature Engineering")
 
     # Add to pipeline function
-    training_model = train_model(
-        training_data=spit_data.outputs["dataset_train"],
-    ).set_display_name("Train Model and Save to GCS")
-
-    # Predit model
-    predict_data = predict_model(
-        test_data=spit_data.outputs["dataset_test"],
-        model=training_model.outputs["model"],
-    ).set_display_name("Create Predictions")
-
-    # Evaluate model
-    eval_metrics = evaluation_metrics(
-        predictions=predict_data.outputs["predictions"],
+    cv_eval = cross_validation(
+        training_data=training_data.outputs["dataset_train"],
         metrics_names=METRICS_NAMES,
-    ).set_display_name("Evaluation Metrics")
+    ).set_display_name("Cross Valiation")
+
+    training_model = train_model(
+        training_data=training_data.outputs["dataset_train"],
+    ).set_display_name("Train Model and Save to GCS")
 
     reg_model = register_model(
         model=training_model.outputs["model"],
-        model_metrics=eval_metrics.outputs["kpi"],
+        model_metrics=cv_eval.outputs["scores"],
         project_id=project_id,
         location=dataset_location,
         display_name=args.PIPELINE_NAME,

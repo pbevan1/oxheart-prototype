@@ -1,9 +1,29 @@
 # oxheart-prototype
 
-This repository defines a kubeflow pipeline for an inital prototype of a heart disease prediction model and deploys it on Vertex AI pipelines. The pipeine should compile as below:
+This repository defines a kubeflow pipeline for an inital prototype of a heart disease prediction model and deploys it on Vertex AI pipelines.
+
+## API
+
+To query the API to get predictions on new data (example data):
+
+```bash
+cd deploy_model
+curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H "X-API-KEY: API_KEY" -H "Content-Type: application/json" -d '{"features": "59,1,0,110,239,0,0,142,1,1,1,3"}'
+```
+
+**NOTE**: The model isn't trained using `oldpeak`, so queries to the API should not include the value for this.
+
+`API_KEY`` can be requested from me via `peterbevan@hotmail.co.uk``.
+
+---
+## Training Pipeline
+The training pipeine should compile as below:
 
 ![Oxheart Pipeline DAG](data/pipeline_dag.png)
 
+---
+
+### Usage
 Required IAM permissions for GCP service account:
 
 * `Vertex AI Service Agent`
@@ -35,25 +55,14 @@ To deploy the newest model to GCP cloud run API
 gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY="API_KEY" --allow-unauthenticated --platform=managed
 ```
 
-To query the API to get predictions on new data (example data):
-
-```bash
-cd deploy_model
-curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H "X-API-KEY: API_KEY" -H "Content-Type: application/json" -d '{"features": "59,1,0,110,239,0,0,142,1,1,1,3"}'
-```
-
-**NOTE**: The model isn't trained using `oldpeak`, so queries to the API should not include the value for this.
-
-API_KEY can be requested from me via `peterbevan@hotmail.co.uk``.
-
 Additionaly, github actions is being used for CI/CD, and is set to run tests and deploy the training pipeline upon each push to the main branch.
 
 We use `ruff` for linting in this repository.
 
-Questions to client:
+### Questions to client
 * What is the expected distribution and range of values of oldpeak? Seems to be outlier at -99.99.
 
-What would I do with more time?
+### What would I do with more time?
 * Add testing.
 * Adjust ci/cd to retrain when we get new data.
 * Ask the client about the potential anomolous `oldpeak` data or do more research into it.

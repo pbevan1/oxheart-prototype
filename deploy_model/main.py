@@ -83,8 +83,18 @@ def predict():
     if not model:
         abort(503, "Model not loaded")
 
+    # Split the features string into a list and convert to float
     try:
         features = [float(f) for f in features_str.split(",")]
+    except ValueError:
+        abort(400, "Features must be a comma-separated list of floats.")
+
+    # Check if the number of features is exactly 12
+    if len(features) != 12:
+        abort(400, """Exactly 12 features are required: ["age","sex","chest_pain_type","resting_blood_pressure",
+              "chol","fasting_blood_sugar","resting_ECG","max_heart_rate","exang","slope","number_vessels_flourosopy","thal"]""")
+
+    try:
         prediction = model.predict([features])
         return jsonify({"prediction": int(prediction[0])})
     except Exception as e:
