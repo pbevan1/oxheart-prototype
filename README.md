@@ -32,7 +32,7 @@ The evaluation results for each pipeline run can be checked in the Vertex AI Pip
 
 To deploy the newest model to GCP cloud run API
 ```bash
-gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY="d3b88ec0-e104-4be0-8dcd-61c825c2be55" --allow-unauthenticated --platform=managed
+gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY="API_KEY" --allow-unauthenticated --platform=managed
 ```
 
 To query the API to get predictions on new data (example data):
