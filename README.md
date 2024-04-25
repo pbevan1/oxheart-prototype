@@ -10,7 +10,9 @@ To query the API to get predictions on new data (example data):
 curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H "X-API-KEY: API_KEY" -H "Content-Type: application/json" -d '{"features": "59,1,0,110,239,0,0,142,1,1,1,3"}'
 ```
 
-**NOTE**: The model isn't trained using `oldpeak`, so queries to the API should not include the value for this.
+**NOTE**: The model isn't trained using `oldpeak`, so queries to the API should not include the value for this. The features should be in this order:
+
+["age","sex","chest_pain_type","resting_blood_pressure","chol","fasting_blood_sugar","resting_ECG","max_heart_rate","exang","slope","number_vessels_flourosopy","thal"]
 
 `API_KEY` can be requested from me via `peterbevan@hotmail.co.uk`.
 

@@ -32,7 +32,6 @@ def get_newest_model_url(project_id, location, model_display_name):
             parsed_uri.netloc
         )
 
-        # Assuming the model is stored as a joblib file in the artifact URI
         return model_path, bucket_name
     else:
         raise Exception("No models found with the display name provided.")
