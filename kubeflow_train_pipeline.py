@@ -113,8 +113,21 @@ def feature_eng(
 
     df = pd.read_csv(data_input.path)
 
-    # df.dropna(inplace=True)
+    # Filling missing max_heart_rate values with median
     df["max_heart_rate"].fillna(df["max_heart_rate"].median(), inplace=True)
+
+    # Some data validation assertions
+    # Check for conservative known ranges
+    assert df["age"].between(0, 130).all(), "Age is out of the expected range"
+    assert (
+        df["resting blood pressure"].between(0, 400).all()
+    ), "Resting blood pressure is out of the expected range"
+    assert df["chol"].between(0, 1200).all(), "Cholesterol is out of the expected range"
+    assert (
+        df["max_heart_rate"].between(0, 600).all()
+    ), "Max heart rate is out of the expected range"
+    # Check for any missing values in the DataFrame after we've dealt with known missing values
+    assert not df.isnull().any().any(), "There are missing values in the DataFrame"
 
     logging.info(f"[START] CREATE SETS, starts with an initial shape of {df.shape}")
 
@@ -172,7 +185,9 @@ def cross_validation(
 
     metrics_dict = {}
     for each_metric in metrics_names:
-        metric_scores = cross_val_score(clf, X_train, y_train, cv=5, scoring=each_metric)
+        metric_scores = cross_val_score(
+            clf, X_train, y_train, cv=5, scoring=each_metric
+        )
         metric_val = metric_scores.mean()
         metrics_dict[f"{each_metric}"] = metric_val
         scores.log_metric(f"{each_metric}", metric_val)

@@ -1,6 +1,6 @@
 data/*.csv
 credentials/*.json
-tests/
+gx/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
