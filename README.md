@@ -1,6 +1,6 @@
 # oxheart-prototype
 
-This repository defines a kubeflow pipeline for an inital prototype of a heart disease prediction model and deploys it on Vertex AI pipelines.
+This repository defines a kubeflow pipeline for an inital prototype of a heart disease prediction model and deploys it on Vertex AI pipelines for training and Google cloud run for inference.
 
 ## API
 
