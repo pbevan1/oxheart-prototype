@@ -65,13 +65,12 @@ We use `ruff` for linting in this repository.
 * What is the expected distribution and range of values of oldpeak? Seems to be outlier at -99.99.
 
 ### What would I do with more time?
-* Add testing.
-* Adjust ci/cd to retrain when we get new data.
-* Ask the client about the potential anomolous `oldpeak` data or do more research into it.
-* Add more models into pipeline to see best performing.
+* Add more testing.
+* Adjust ci/cd to retrain when we get new data (or some other trigger).
+* Ask the client about the potential anomolous `oldpeak` data or do more research into it. Also discuss expectations for other features.
+* Add more models into pipeline to see best performing and select champion.
 * Better documentation (i.e. function docstrings).
-* Maybe k-fold cross validation instead of train/test split and then retrain on full dataset before deploying since the dataset is tiny.
-* Hyperparameter tuning/feature selection/model comparison if it was real world data where we didn't already get 100% acc with logistic regression.
+* Hyperparameter tuning/feature selection/model comparison.
 * Consider deploying to endpoint rather than cloud run if it was going to be used more heavily (vertex ai endpoint doesn't scale to 0 though so for prototype cloud run is ideal as it scales to 0).
-* Configure proper authentication for API
-* Configure to deploy most best performing model or some other more nuanced ranking than most recent, set up model registry properly.
+* Configure proper authentication for API.
+* Configure to deploy best performing model or some other more nuanced ranking than most recent, set up model registry properly.
