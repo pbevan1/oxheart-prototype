@@ -7,7 +7,6 @@ This repository defines a kubeflow pipeline for an inital prototype of a heart d
 To query the API to get predictions on new data (example data):
 
 ```bash
-cd deploy_model
 curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H "X-API-KEY: API_KEY" -H "Content-Type: application/json" -d '{"features": "59,1,0,110,239,0,0,142,1,1,1,3"}'
 ```
 
@@ -52,10 +51,11 @@ The evaluation results for each pipeline run can be checked in the Vertex AI Pip
 
 To deploy the newest model to GCP cloud run API
 ```bash
+cd deploy_model
 gcloud run deploy mf-oxheart-test --source=. --region=europe-west1 --set-env-vars=API_KEY="API_KEY" --allow-unauthenticated --platform=managed
 ```
 
-Additionaly, github actions is being used for CI/CD, and is set to run tests and deploy the training pipeline upon each push to the main branch.
+Additionaly, github actions is being used for CI/CD, and is set to run tests and deploy the training pipeline upon each push to the main branch. We can also trigger pipeline and API deployments via the github actions UI.
 
 We use `ruff` for linting in this repository.
 
