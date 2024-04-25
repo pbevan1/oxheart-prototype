@@ -4,7 +4,7 @@ This repository defines a kubeflow pipeline for an inital prototype of a heart d
 
 ## API
 
-To query the API to get predictions on new data (example data):
+To query the API to get predictions on new data (example data used below):
 
 ```bash
 curl -X POST "https://mf-oxheart-prototype-r72sq3y5oa-ew.a.run.app/predict/" -H "X-API-KEY: API_KEY" -H "Content-Type: application/json" -d '{"features": "59,1,0,110,239,0,0,142,1,1,1,3"}'
