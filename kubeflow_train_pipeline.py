@@ -120,7 +120,7 @@ def feature_eng(
     # Check for conservative known ranges
     assert df["age"].between(0, 130).all(), "Age is out of the expected range"
     assert (
-        df["resting blood pressure"].between(0, 400).all()
+        df["resting_blood_pressure"].between(0, 400).all()
     ), "Resting blood pressure is out of the expected range"
     assert df["chol"].between(0, 1200).all(), "Cholesterol is out of the expected range"
     assert (
