@@ -322,7 +322,7 @@ def oxheart_prototype_pipeline(
     cv_eval = cross_validation(
         training_data=training_data.outputs["dataset_train"],
         metrics_names=metrics,
-    ).set_display_name("Cross Valiation")
+    ).set_display_name("Cross Validation")
 
     training_model = train_model(
         training_data=training_data.outputs["dataset_train"],
