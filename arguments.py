@@ -71,6 +71,12 @@ def parse_args():
         help="Whether to enable caching for Vertex AI pipeline components.",
         default=False,
     )
+    parser.add_argument(
+        "--METRICS",
+        nargs="+",
+        help="What metrics to evaluate.",
+        default=["accuracy", "f1", "precision", "recall"],
+    )
 
     args, _ = parser.parse_known_args()
     return args

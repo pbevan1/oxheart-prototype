@@ -91,8 +91,11 @@ def predict():
 
     # Check if the number of features is exactly 12
     if len(features) != 12:
-        abort(400, """Exactly 12 features are required: ["age","sex","chest_pain_type","resting_blood_pressure",
-              "chol","fasting_blood_sugar","resting_ECG","max_heart_rate","exang","slope","number_vessels_flourosopy","thal"]""")
+        abort(
+            400,
+            """Exactly 12 features are required: ["age","sex","chest_pain_type","resting_blood_pressure",
+              "chol","fasting_blood_sugar","resting_ECG","max_heart_rate","exang","slope","number_vessels_flourosopy","thal"]""",
+        )
 
     try:
         prediction = model.predict([features])
@@ -103,4 +106,3 @@ def predict():
 
 if __name__ == "__main__":
     app.run()
-# TODO: deploy with cloud run and arguments or get most recent model

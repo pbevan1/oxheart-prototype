@@ -172,8 +172,8 @@ def cross_validation(
 
     metrics_dict = {}
     for each_metric in metrics_names:
-        scores = cross_val_score(clf, X_train, y_train, cv=5, scoring=each_metric)
-        metric_val =scores.mean()
+        metric_scores = cross_val_score(clf, X_train, y_train, cv=5, scoring=each_metric)
+        metric_val = metric_scores.mean()
         metrics_dict[f"{each_metric}"] = metric_val
         scores.log_metric(f"{each_metric}", metric_val)
 
@@ -271,9 +271,9 @@ def oxheart_prototype_pipeline(
     table_id: str,
     col_label: str,
     col_training: list,
+    metrics: list,
 ):
     QUERY = f"""SELECT * FROM `{project_id}.{dataset_id}.{table_id}`"""
-    METRICS_NAMES = ["accuracy", "f1"]
 
     ingest = query_to_table(
         query=QUERY,
@@ -306,7 +306,7 @@ def oxheart_prototype_pipeline(
     # Add to pipeline function
     cv_eval = cross_validation(
         training_data=training_data.outputs["dataset_train"],
-        metrics_names=METRICS_NAMES,
+        metrics_names=metrics,
     ).set_display_name("Cross Valiation")
 
     training_model = train_model(
@@ -334,6 +334,7 @@ if __name__ == "__main__":
         "dataset_id": args.DATASET_ID,
         "col_label": args.COL_LABEL,
         "col_training": args.COL_TRAINING,
+        "metrics": args.METRICS,
     }
 
     compiler.Compiler().compile(
